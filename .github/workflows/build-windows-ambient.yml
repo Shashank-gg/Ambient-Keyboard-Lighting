@@ -1,0 +1,51 @@
+name: Build Ambient Lighting for Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+      VCPKG_DEFAULT_TRIPLET: x64-windows-static
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg/installed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: '9e593bb18ea69cc5095e012465dcd675a822ed0d'
+          runVcpkgInstall: true
+          vcpkgJsonGlob: '**/vcpkg.json'
+          vcpkgDirectory: '${{ github.workspace }}/vcpkg'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release executable
+        shell: pwsh
+        run: cargo build --release --verbose
+      - name: Prepare package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item target/release/legion-kb-rgb.exe package/
+          Copy-Item tools/Enable-Startup.ps1 package/
+          Copy-Item tools/Disable-Startup.ps1 package/
+          Copy-Item LICENSE package/
+          @'
+          AMBIENT KEYBOARD LIGHTING
+
+          Run legion-kb-rgb.exe to start the app.
+          To enable automatic startup, right-click Enable-Startup.ps1 and choose Run with PowerShell.
+          To disable it, run Disable-Startup.ps1.
+
+          This is an unofficial source modification of Legion RGB Control. Keyboard compatibility and update speed depend on the device firmware/driver. FPS is a target, not a guarantee of 100 physical LED updates per second.
+          '@ | Set-Content package/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ambient-Keyboard-Lighting-Windows
+          path: package/*
+          if-no-files-found: error
